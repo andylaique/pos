@@ -1,7 +1,18 @@
 from fastapi import FastAPI
 
-from database import Base, engine
-from app.models import category, supplier, product, user, customer, sale, sale_item, payment, receipt
+from database import Base
+
+from app.models import (
+    category,
+    supplier,
+    product,
+    user,
+    customer,
+    sale,
+    sale_item,
+    payment,
+    receipt
+)
 
 from app.routers import (
     category as category_router,
@@ -15,9 +26,10 @@ from app.routers import (
     receipt as receipt_router,
 )
 
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="POS API", version="1.0.0")
+app = FastAPI(
+    title="POS API",
+    version="1.0.0"
+)
 
 app.include_router(category_router.router)
 app.include_router(supplier_router.router)

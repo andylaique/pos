@@ -1,64 +1,54 @@
-import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-os.environ["TESTING"] = "true"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-
 from database import Base, get_db
 from main import app
 
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+
 engine = create_engine(
-    "sqlite:///:memory:",
+    SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
 
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
 
-Base.metadata.create_all(bind=engine)
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_database():
+@pytest.fixture(scope="function")
+def db():
+    """
+    Creates a fresh database schema for each test run and yields a database session.
+    Automatically cleans up and drops all tables when the individual test finishes.
+    """
     Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture(scope="function")
-def client(setup_database):
-    connection = engine.connect()
-    transaction = connection.begin()
-    
-    TestingSessionLocal.configure(bind=connection)
-    
-    with TestClient(app) as c:
-        yield c
-    
-    TestingSessionLocal.configure(bind=engine)
-    transaction.rollback()
-    connection.close()
-
-
-@pytest.fixture(scope="function")
-def db_session():
-    db = TestingSessionLocal()
+    database = TestingSessionLocal()
     try:
-        yield db
+        yield database
     finally:
-        db.close()
+        database.close()
+        Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture(scope="function")
+def client(db):
+    """
+    Overrides the FastAPI dependency with our isolated SQLite test session
+    and yields a clean TestClient instance.
+    """
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
