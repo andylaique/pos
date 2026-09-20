@@ -1,0 +1,38 @@
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
+from database import get_db
+from app.schemas.receipt import ReceiptCreate, ReceiptUpdate, ReceiptRead
+from app.services import receipt_services
+
+router = APIRouter(prefix="/receipts", tags=["Receipts"])
+
+
+@router.get("/", response_model=list[ReceiptRead])
+def list_receipts(db: Session = Depends(get_db)):
+    return receipt_services.list_receipts(db)
+
+
+@router.get("/{receipt_id}", response_model=ReceiptRead)
+def get_receipt(receipt_id: int, db: Session = Depends(get_db)):
+    return receipt_services.get_receipt(db, receipt_id)
+
+
+@router.get("/sale/{sale_id}", response_model=list[ReceiptRead])
+def get_receipts_by_sale(sale_id: int, db: Session = Depends(get_db)):
+    return receipt_services.get_receipts_by_sale(db, sale_id)
+
+
+@router.post("/sale/{sale_id}", response_model=ReceiptRead, status_code=status.HTTP_201_CREATED)
+def issue_receipt(sale_id: int, data: ReceiptCreate, db: Session = Depends(get_db)):
+    return receipt_services.issue_receipt(db, sale_id, data)
+
+
+@router.put("/{receipt_id}", response_model=ReceiptRead)
+def update_receipt(receipt_id: int, data: ReceiptUpdate, db: Session = Depends(get_db)):
+    return receipt_services.update_receipt(db, receipt_id, data)
+
+
+@router.delete("/{receipt_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
+    receipt_services.delete_receipt(db, receipt_id)
